@@ -44,10 +44,20 @@ public class KeyEventHandler {
     public void handleKeyEvent(KeyEvent event) {
         if (event == null) return;
 
+        // Boss-key reassignment is only allowed while the explicit Detect screen is open.
+        // Otherwise holding the configured boss key would repeatedly summon the dialog
+        // and interfere with mouse dragging on the launcher.
+        if (!KeyDetection.isDetectionActive()) {
+            mainHandler.removeCallbacks(longPressRunnable);
+            candidateKeyCode = KeyEvent.KEYCODE_UNKNOWN;
+            dialogShownForCurrentPress = false;
+            return;
+        }
+
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
             // Start one timer per physical press. Repeated ACTION_DOWN events must not
             // create multiple dialogs while the user continues holding the key.
-            if (event.getRepeatCount() == 0 || candidateKeyCode != event.getKeyCode()) {
+            if (candidateKeyCode == KeyEvent.KEYCODE_UNKNOWN || candidateKeyCode != event.getKeyCode()) {
                 mainHandler.removeCallbacks(longPressRunnable);
                 candidateKeyCode = event.getKeyCode();
                 dialogShownForCurrentPress = false;
