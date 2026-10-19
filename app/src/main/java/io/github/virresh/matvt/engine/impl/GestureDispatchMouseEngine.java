@@ -43,7 +43,12 @@ public class GestureDispatchMouseEngine extends BaseEngine {
     @Override
     protected int click(KeyEvent ke) {
         PointF pointer = mPointerControl.getPointerLocation();
-        if (ke.getKeyCode() == KeyEvent.KEYCODE_DPAD_CENTER) {
+        if (ke.getKeyCode() == KeyEvent.KEYCODE_DPAD_CENTER
+                || ke.getKeyCode() == KeyEvent.KEYCODE_ENTER
+                || ke.getKeyCode() == KeyEvent.KEYCODE_NUMPAD_ENTER
+                || ke.getKeyCode() == KeyEvent.KEYCODE_BUTTON_A) {
+            // The configured confirm key may be ENTER/OK on TV-style devices,
+            // not only DPAD_CENTER. Dispatch an actual tap for all common confirm keys.
             mService.dispatchGesture(createClick(pointer, 1), gestureResultCallback, null);
         } else if (scrollCodeMap.containsKey(ke.getKeyCode())) {
             int direction = scrollCodeMap.get(ke.getKeyCode());
