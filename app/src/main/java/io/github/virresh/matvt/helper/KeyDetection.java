@@ -20,6 +20,11 @@ public class KeyDetection extends AppCompatActivity {
     public static final String EXTRA_KEY_ACTION = "extra_key_action";
 
     private TextView textView;
+    private static volatile boolean detectionActive = false;
+
+    public static boolean isDetectionActive() {
+        return detectionActive;
+    }
 
     private final BroadcastReceiver keyEventReceiver = new BroadcastReceiver() {
         @Override
@@ -46,12 +51,14 @@ public class KeyDetection extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        detectionActive = true;
         IntentFilter filter = new IntentFilter(ACTION_KEY_EVENT);
         LocalBroadcastManager.getInstance(this).registerReceiver(keyEventReceiver, filter);
     }
 
     @Override
     protected void onPause() {
+        detectionActive = false;
         super.onPause();
         LocalBroadcastManager.getInstance(this).unregisterReceiver(keyEventReceiver);
     }
