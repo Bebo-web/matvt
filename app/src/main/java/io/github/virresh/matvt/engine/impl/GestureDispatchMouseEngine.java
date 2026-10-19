@@ -21,6 +21,10 @@ public class GestureDispatchMouseEngine extends BaseEngine {
 
 
     private static String LOG_TAG = "GESTURE_MOUSE_EMULATION";
+    private GestureDescription.StrokeDescription dragStroke;
+    private boolean dragActive = false;
+    private boolean dragPending = false;
+    private PointF dragTarget;
 
     public GestureDispatchMouseEngine(AccessibilityService service, OverlayView ov, AppPreferences appPreferences, MouseCursorView mouseCursorView) {
         super(appPreferences, ov, mouseCursorView);
@@ -52,14 +56,65 @@ public class GestureDispatchMouseEngine extends BaseEngine {
         public void onCompleted(GestureDescription gestureDescription) {
             super.onCompleted(gestureDescription);
             Log.i(LOG_TAG, "Dispatch Gesture Completed Succesfully! -- " + gestureDescription.getStrokeCount());
+            if (dragPending) {
+                dragPending = false;
+                continueDrag();
+            }
         }
 
         @Override
         public void onCancelled(GestureDescription gestureDescription) {
             super.onCancelled(gestureDescription);
             Log.i(LOG_TAG, "Dispatch Gesture was cancelled! -- " + gestureDescription.getStrokeCount());
+            dragActive = false;
+            dragPending = false;
+            dragStroke = null;
         }
     };
+
+    @Override
+    protected void onDragStart(PointF point) {
+        if (mService == null || dragActive) return;
+        dragActive = true;
+        dragTarget = new PointF(point.x, point.y);
+        Path path = new Path();
+        path.moveTo(point.x, point.y);
+        path.lineTo(point.x + 1, point.y);
+        dragStroke = new GestureDescription.StrokeDescription(path, 0, 1000, true);
+        dragPending = true;
+        mService.dispatchGesture(new GestureDescription.Builder().addStroke(dragStroke).build(), gestureResultCallback, null);
+    }
+
+    @Override
+    protected void onDragMove(PointF point) {
+        if (dragActive) dragTarget = new PointF(point.x, point.y);
+    }
+
+    @Override
+    protected void onDragEnd(PointF point) {
+        if (!dragActive) return;
+        dragTarget = new PointF(point.x, point.y);
+        dragActive = false;
+        if (!dragPending) continueDrag();
+    }
+
+    private void continueDrag() {
+        if (mService == null || dragStroke == null || dragTarget == null) return;
+        PointF target = new PointF(dragTarget.x, dragTarget.y);
+        Path path = new Path();
+        path.moveTo(target.x, target.y);
+        path.lineTo(target.x + 1, target.y);
+        try {
+            GestureDescription.StrokeDescription next = dragStroke.continueStroke(path, 0, 1000, dragActive);
+            dragStroke = next;
+            dragPending = true;
+            mService.dispatchGesture(new GestureDescription.Builder().addStroke(next).build(), gestureResultCallback, null);
+        } catch (IllegalStateException exception) {
+            Log.w(LOG_TAG, "Could not continue drag gesture", exception);
+            dragStroke = null;
+            dragPending = false;
+        }
+    }
 
     private static GestureDescription createClick (PointF clickPoint, long duration) {
         final int DURATION = 1 + (int) duration;

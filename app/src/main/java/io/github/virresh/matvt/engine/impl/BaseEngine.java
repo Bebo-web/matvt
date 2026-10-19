@@ -3,6 +3,7 @@ package io.github.virresh.matvt.engine.impl;
 import android.accessibilityservice.AccessibilityService;
 import android.content.Context;
 import android.graphics.Point;
+import android.graphics.PointF;
 import android.os.CountDownTimer;
 import android.os.Handler;
 import android.util.Log;
@@ -59,6 +60,8 @@ public abstract class BaseEngine implements MouseEmulationEngine {
     public boolean isBossKeySetToToggle;
 
     private Point DPAD_Center_Init_Point = new Point();
+    private CountDownTimer confirmLongPressTimer;
+    private boolean dragStarted = false;
 
     // tells which keycodes correspond to which pointer movement in scroll and movement mode
     // scroll directions don't match keycode instruction because that's how swiping works
@@ -122,6 +125,10 @@ public abstract class BaseEngine implements MouseEmulationEngine {
     abstract protected int scroll(KeyEvent ke);
     abstract protected int click(KeyEvent ke);
 
+    protected void onDragStart(PointF point) {}
+    protected void onDragMove(PointF point) {}
+    protected void onDragEnd(PointF point) {}
+
     private void attachTimer (final int direction) {
         if (previousRunnable != null) {
             detachPreviousTimer();
@@ -131,6 +138,7 @@ public abstract class BaseEngine implements MouseEmulationEngine {
             public void run() {
                 mPointerControl.reappear();
                 mPointerControl.move(direction, momentumStack);
+                if (dragStarted) onDragMove(mPointerControl.getPointerLocation());
                 momentumStack += 1;
                 timerHandler.postDelayed(this, 30);
             }
@@ -263,6 +271,17 @@ public abstract class BaseEngine implements MouseEmulationEngine {
                 // just consume this event to prevent propagation
                 DPAD_Center_Init_Point = new Point((int) mPointerControl.getPointerLocation().x, (int) mPointerControl.getPointerLocation().y);
                 DPAD_SELECT_PRESSED = true;
+                dragStarted = false;
+                if (confirmLongPressTimer != null) confirmLongPressTimer.cancel();
+                confirmLongPressTimer = new CountDownTimer(500, 500) {
+                    @Override public void onTick(long millisUntilFinished) {}
+                    @Override public void onFinish() {
+                        if (DPAD_SELECT_PRESSED && operatingMode == OperatingMode.MOUSE) {
+                            dragStarted = true;
+                            onDragStart(mPointerControl.getPointerLocation());
+                        }
+                    }
+                }.start();
                 consumed = true;
             }
         } else if (keyEvent.getAction() == KeyEvent.ACTION_UP) {
@@ -272,13 +291,14 @@ public abstract class BaseEngine implements MouseEmulationEngine {
                 consumed = true;
             } else if (keyEvent.getKeyCode() == confirmKey) {
                 DPAD_SELECT_PRESSED = false;
+                if (confirmLongPressTimer != null) confirmLongPressTimer.cancel();
                 detachPreviousTimer();
                 Point pInt = new Point((int) mPointerControl.getPointerLocation().x, (int) mPointerControl.getPointerLocation().y);
-                if (DPAD_Center_Init_Point.equals(pInt)) {
+                if (dragStarted) {
+                    onDragEnd(mPointerControl.getPointerLocation());
+                    dragStarted = false;
+                } else if (DPAD_Center_Init_Point.equals(pInt)) {
                     click(keyEvent);
-                } else{
-                    //Implement Drag Function here
-                    Log.i(LOG_TAG, "Trying to drag. This is not available.");
                 }
             }
         }
