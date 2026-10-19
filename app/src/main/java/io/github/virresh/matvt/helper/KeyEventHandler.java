@@ -66,7 +66,7 @@ public class KeyEventHandler {
         mainHandler.post(new Runnable() {
             @Override
             public void run() {
-                if (dialogShowing || !mouseEventService.isServiceConnectedForKeyDialog()) return;
+                if (dialogShowing) return;
                 dialogShowing = true;
 
                 AlertDialog.Builder builder = new AlertDialog.Builder(context, R.style.Wolf_Alert_Disp);
