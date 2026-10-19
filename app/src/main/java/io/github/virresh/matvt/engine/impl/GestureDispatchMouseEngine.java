@@ -82,7 +82,7 @@ public class GestureDispatchMouseEngine extends BaseEngine {
         path.moveTo(point.x, point.y);
         path.lineTo(point.x + 1, point.y);
         dragStrokeEnd = new PointF(point.x + 1, point.y);
-        dragStroke = new GestureDescription.StrokeDescription(path, 0, 1000, true);
+        dragStroke = new GestureDescription.StrokeDescription(path, 0, 100, true);
         dragPending = true;
         mService.dispatchGesture(new GestureDescription.Builder().addStroke(dragStroke).build(), gestureResultCallback, null);
     }
@@ -110,7 +110,7 @@ public class GestureDispatchMouseEngine extends BaseEngine {
         }
         path.lineTo(target.x, target.y);
         try {
-            GestureDescription.StrokeDescription next = dragStroke.continueStroke(path, 0, 1000, dragActive);
+            GestureDescription.StrokeDescription next = dragStroke.continueStroke(path, 0, 100, dragActive);
             dragStroke = next;
             dragStrokeEnd = new PointF(target.x, target.y);
             dragPending = true;
