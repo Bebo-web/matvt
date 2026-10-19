@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import io.github.virresh.matvt.helper.AppPreferences;
+import io.github.virresh.matvt.services.MouseEventService;
 import io.github.virresh.matvt.view.MouseCursorView;
 import io.github.virresh.matvt.view.OverlayView;
 
@@ -45,9 +46,14 @@ public class GestureDispatchMouseEngine extends BaseEngine {
         PointF pointer = mPointerControl.getPointerScreenLocation();
         Log.i(LOG_TAG, "Dispatch click at screen coordinates x=" + pointer.x + ", y=" + pointer.y);
         if (!scrollCodeMap.containsKey(ke.getKeyCode())) {
-            // BaseEngine calls click() for the configured confirm key, which can be
-            // ENTER/OK or a device-specific key rather than DPAD_CENTER.
-            mService.dispatchGesture(createClick(pointer, 1), gestureResultCallback, null);
+            // Use the accessibility node tree for clicks instead of injecting a touch.
+            if (mService instanceof MouseEventService) {
+                boolean clicked = ((MouseEventService) mService)
+                        .clickAccessibilityNodeAt(pointer.x, pointer.y);
+                Log.i(LOG_TAG, "Accessibility node click dispatched=" + clicked);
+            } else {
+                Log.w(LOG_TAG, "Service does not support accessibility-node clicks");
+            }
         } else if (scrollCodeMap.containsKey(ke.getKeyCode())) {
             int direction = scrollCodeMap.get(ke.getKeyCode());
             mService.dispatchGesture(createSwipe(pointer, direction, 100, scrollSpeed), gestureResultCallback, null);
