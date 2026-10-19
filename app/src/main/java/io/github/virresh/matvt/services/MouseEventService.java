@@ -3,10 +3,13 @@ package io.github.virresh.matvt.services;
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.AccessibilityServiceInfo;
 import android.content.Intent;
+import android.graphics.PointF;
+import android.graphics.Rect;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityNodeInfo;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import io.github.virresh.matvt.BuildConfig;
@@ -44,6 +47,66 @@ public class MouseEventService extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent accessibilityEvent) {}
+
+    /**
+     * Click the deepest visible accessibility node under the mouse pointer.
+     * This does not inject a touch event and therefore can work when touch injection
+     * through dispatchGesture is unavailable, provided the target exposes accessibility
+     * nodes and supports ACTION_CLICK.
+     */
+    public boolean clickAccessibilityNodeAt(float x, float y) {
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root == null) {
+            Log.w(TAG_NAME, "Cannot click accessibility node: active window has no root");
+            return false;
+        }
+
+        AccessibilityNodeInfo target = findDeepestVisibleNodeAt(root, (int) x, (int) y);
+        if (target == null) {
+            Log.w(TAG_NAME, "No visible accessibility node at x=" + x + ", y=" + y);
+            return false;
+        }
+
+        // Prefer the deepest hit node, then walk upward until a clickable ancestor is found.
+        AccessibilityNodeInfo candidate = target;
+        while (candidate != null) {
+            if (candidate.isVisibleToUser() && candidate.isClickable()) {
+                boolean clicked = candidate.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                Log.i(TAG_NAME, "Accessibility ACTION_CLICK result=" + clicked
+                        + ", class=" + candidate.getClassName()
+                        + ", bounds=" + boundsOf(candidate));
+                if (clicked) return true;
+            }
+            candidate = candidate.getParent();
+        }
+        Log.w(TAG_NAME, "No clickable node or clickable ancestor at x=" + x + ", y=" + y);
+        return false;
+    }
+
+    private AccessibilityNodeInfo findDeepestVisibleNodeAt(
+            AccessibilityNodeInfo node, int x, int y) {
+        if (node == null || !node.isVisibleToUser()) return null;
+
+        Rect bounds = new Rect();
+        node.getBoundsInScreen(bounds);
+        if (!bounds.contains(x, y)) return null;
+
+        // Walk children in reverse drawing order where possible; the last matching
+        // descendant is usually the visually topmost/deepest candidate.
+        for (int i = node.getChildCount() - 1; i >= 0; i--) {
+            AccessibilityNodeInfo child = node.getChild(i);
+            if (child == null) continue;
+            AccessibilityNodeInfo match = findDeepestVisibleNodeAt(child, x, y);
+            if (match != null) return match;
+        }
+        return node;
+    }
+
+    private String boundsOf(AccessibilityNodeInfo node) {
+        Rect bounds = new Rect();
+        node.getBoundsInScreen(bounds);
+        return bounds.toShortString();
+    }
 
     @Override
     protected boolean onKeyEvent(KeyEvent event) {
