@@ -35,14 +35,15 @@ public class GestureDispatchMouseEngine extends BaseEngine {
     @Override
     protected int scroll(KeyEvent ke) {
         int direction = scrollCodeMap.get(ke.getKeyCode());
-        PointF pointer = mPointerControl.getPointerLocation();
+        PointF pointer = mPointerControl.getPointerScreenLocation();
         mService.dispatchGesture(createSwipe(pointer, direction, 150, scrollSpeed), gestureResultCallback, null);
         return 1;
     }
 
     @Override
     protected int click(KeyEvent ke) {
-        PointF pointer = mPointerControl.getPointerLocation();
+        PointF pointer = mPointerControl.getPointerScreenLocation();
+        Log.i(LOG_TAG, "Dispatch click at screen coordinates x=" + pointer.x + ", y=" + pointer.y);
         if (!scrollCodeMap.containsKey(ke.getKeyCode())) {
             // BaseEngine calls click() for the configured confirm key, which can be
             // ENTER/OK or a device-specific key rather than DPAD_CENTER.
@@ -79,11 +80,12 @@ public class GestureDispatchMouseEngine extends BaseEngine {
     protected void onDragStart(PointF point) {
         if (mService == null || dragActive) return;
         dragActive = true;
-        dragTarget = new PointF(point.x, point.y);
+        PointF screenPoint = mPointerControl.getPointerScreenLocation();
+        dragTarget = new PointF(screenPoint.x, screenPoint.y);
         Path path = new Path();
-        path.moveTo(point.x, point.y);
-        path.lineTo(point.x + 1, point.y);
-        dragStrokeEnd = new PointF(point.x + 1, point.y);
+        path.moveTo(screenPoint.x, screenPoint.y);
+        path.lineTo(screenPoint.x + 1, screenPoint.y + 1);
+        dragStrokeEnd = new PointF(screenPoint.x + 1, screenPoint.y + 1);
         dragStroke = new GestureDescription.StrokeDescription(path, 0, 100, true);
         dragPending = true;
         mService.dispatchGesture(new GestureDescription.Builder().addStroke(dragStroke).build(), gestureResultCallback, null);
@@ -91,13 +93,17 @@ public class GestureDispatchMouseEngine extends BaseEngine {
 
     @Override
     protected void onDragMove(PointF point) {
-        if (dragActive) dragTarget = new PointF(point.x, point.y);
+        if (dragActive) {
+            PointF screenPoint = mPointerControl.getPointerScreenLocation();
+            dragTarget = new PointF(screenPoint.x, screenPoint.y);
+        }
     }
 
     @Override
     protected void onDragEnd(PointF point) {
         if (!dragActive) return;
-        dragTarget = new PointF(point.x, point.y);
+        PointF screenPoint = mPointerControl.getPointerScreenLocation();
+        dragTarget = new PointF(screenPoint.x, screenPoint.y);
         dragActive = false;
         if (!dragPending) continueDrag();
     }
@@ -128,8 +134,10 @@ public class GestureDispatchMouseEngine extends BaseEngine {
         final int DURATION = 1 + (int) duration;
         Path clickPath = new Path();
         clickPath.moveTo(clickPoint.x, clickPoint.y);
+        // A short explicit segment is more reliable than a moveTo-only path on some ROMs.
+        clickPath.lineTo(clickPoint.x + 1f, clickPoint.y + 1f);
         GestureDescription.StrokeDescription clickStroke =
-                new GestureDescription.StrokeDescription(clickPath, 0, DURATION);
+                new GestureDescription.StrokeDescription(clickPath, 0, Math.max(40, DURATION));
         GestureDescription.Builder clickBuilder = new GestureDescription.Builder();
         clickBuilder.addStroke(clickStroke);
         return clickBuilder.build();
