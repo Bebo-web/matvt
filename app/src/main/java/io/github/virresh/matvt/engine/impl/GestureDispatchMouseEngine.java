@@ -25,6 +25,7 @@ public class GestureDispatchMouseEngine extends BaseEngine {
     private boolean dragActive = false;
     private boolean dragPending = false;
     private PointF dragTarget;
+    private PointF dragStrokeEnd;
 
     public GestureDispatchMouseEngine(AccessibilityService service, OverlayView ov, AppPreferences appPreferences, MouseCursorView mouseCursorView) {
         super(appPreferences, ov, mouseCursorView);
@@ -80,6 +81,7 @@ public class GestureDispatchMouseEngine extends BaseEngine {
         Path path = new Path();
         path.moveTo(point.x, point.y);
         path.lineTo(point.x + 1, point.y);
+        dragStrokeEnd = new PointF(point.x + 1, point.y);
         dragStroke = new GestureDescription.StrokeDescription(path, 0, 1000, true);
         dragPending = true;
         mService.dispatchGesture(new GestureDescription.Builder().addStroke(dragStroke).build(), gestureResultCallback, null);
@@ -102,11 +104,15 @@ public class GestureDispatchMouseEngine extends BaseEngine {
         if (mService == null || dragStroke == null || dragTarget == null) return;
         PointF target = new PointF(dragTarget.x, dragTarget.y);
         Path path = new Path();
-        path.moveTo(target.x, target.y);
-        path.lineTo(target.x + 1, target.y);
+        path.moveTo(dragStrokeEnd.x, dragStrokeEnd.y);
+        if (Math.abs(target.x - dragStrokeEnd.x) < 1 && Math.abs(target.y - dragStrokeEnd.y) < 1) {
+            target = new PointF(dragStrokeEnd.x + 1, dragStrokeEnd.y);
+        }
+        path.lineTo(target.x, target.y);
         try {
             GestureDescription.StrokeDescription next = dragStroke.continueStroke(path, 0, 1000, dragActive);
             dragStroke = next;
+            dragStrokeEnd = new PointF(target.x, target.y);
             dragPending = true;
             mService.dispatchGesture(new GestureDescription.Builder().addStroke(next).build(), gestureResultCallback, null);
         } catch (IllegalStateException exception) {
