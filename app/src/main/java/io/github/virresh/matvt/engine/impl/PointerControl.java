@@ -130,6 +130,19 @@ public class PointerControl {
         return mPointerLocation;
     }
 
+    /**
+     * AccessibilityService.dispatchGesture expects screen coordinates, while the cursor
+     * position is stored relative to the overlay view. Convert explicitly so overlays
+     * whose origin differs from (0, 0) still tap the visible cursor location.
+     */
+    @NonNull
+    PointF getPointerScreenLocation() {
+        int[] screenLocation = new int[2];
+        mPointerLayerView.getLocationOnScreen(screenLocation);
+        return new PointF(mPointerLocation.x + screenLocation[0],
+                mPointerLocation.y + screenLocation[1]);
+    }
+
     PointF getCenterPointOfView() {
         return new PointF(mPointerLayerView.getWidth() / 2f,mPointerLayerView.getWidth() / 2f);
     }
