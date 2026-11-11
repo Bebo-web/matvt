@@ -46,15 +46,21 @@ public class GestureDispatchMouseEngine extends BaseEngine {
         PointF pointer = mPointerControl.getPointerScreenLocation();
         Log.i(LOG_TAG, "Dispatch click at screen coordinates x=" + pointer.x + ", y=" + pointer.y);
         if (!scrollCodeMap.containsKey(ke.getKeyCode())) {
-            // Use the accessibility node tree for clicks instead of injecting a touch.
+            // First use the accessibility tree (works without touch hardware).
+            // If the target app exposes no clickable accessibility node, retain MATVT's
+            // original gesture click as a fallback. Never send both for one click.
+            boolean clicked = false;
             if (mService instanceof MouseEventService) {
-                boolean clicked = ((MouseEventService) mService)
+                clicked = ((MouseEventService) mService)
                         .clickAccessibilityNodeAt(pointer.x, pointer.y);
                 Log.i(LOG_TAG, "Accessibility node click dispatched=" + clicked);
-            } else {
-                Log.w(LOG_TAG, "Service does not support accessibility-node clicks");
             }
-        } else if (scrollCodeMap.containsKey(ke.getKeyCode())) {
+
+            if (!clicked) {
+                Log.i(LOG_TAG, "Accessibility click unavailable; falling back to original gesture click");
+                mService.dispatchGesture(createClick(pointer, 40), gestureResultCallback, null);
+            }
+        } else {
             int direction = scrollCodeMap.get(ke.getKeyCode());
             mService.dispatchGesture(createSwipe(pointer, direction, 100, scrollSpeed), gestureResultCallback, null);
         }
