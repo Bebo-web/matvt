@@ -17,6 +17,7 @@ public class AppPreferences {
     private static final String PREF_KEY_CB_DISABLE_BOSSKEY = "DISABLE_BOSSKEY";
     private static final String PREF_KEY_CB_BEHAVIOUR_BOSSKEY = "CB_BEHAVIOUR_BOSSKEY";
     private static final String PREF_KEY_ENGINE_TYPE = "ENGINE_TYPE";
+    private static final String PREF_KEY_CLICK_METHOD = "CLICK_METHOD";
     private static final String PREF_KEY_CONFIRM_KEY = "CONFIRM_KEY";
 
     private final SharedPreferences sharedPreferences;
@@ -110,6 +111,14 @@ public class AppPreferences {
 
     public void setEngineType(String val) {
         sharedPreferences.edit().putString(PREF_KEY_ENGINE_TYPE, val).apply();
+    }
+
+    public String getClickMethod() {
+        return sharedPreferences.getString(PREF_KEY_CLICK_METHOD, "original");
+    }
+
+    public void setClickMethod(String val) {
+        sharedPreferences.edit().putString(PREF_KEY_CLICK_METHOD, val).apply();
     }
 
     public int getConfirmKeyValue() {
