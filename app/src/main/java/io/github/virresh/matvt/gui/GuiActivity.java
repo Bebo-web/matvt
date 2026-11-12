@@ -38,7 +38,7 @@ public class GuiActivity extends AppCompatActivity {
     EditText et_boss_override, et_confirm_override;
     Button bt_saveBossKeyValue, bt_saveConfirmKeyValue;
 
-    Spinner sp_mouse_icon, sp_engine_type;
+    Spinner sp_mouse_icon, sp_engine_type, sp_click_method;
     SeekBar dsbar_mouse_size;
     SeekBar dsbar_scroll_speed;
 
@@ -73,6 +73,7 @@ public class GuiActivity extends AppCompatActivity {
 
         sp_mouse_icon = findViewById(R.id.sp_mouse_icon);
         sp_engine_type = findViewById(R.id.sp_engine_type);
+        sp_click_method = findViewById(R.id.sp_click_method);
         dsbar_mouse_size = findViewById(R.id.dsbar_mouse_size);
         dsbar_scroll_speed = findViewById(R.id.dsbar_mouse_scspeed);
 
@@ -90,7 +91,12 @@ public class GuiActivity extends AppCompatActivity {
         engineTypeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         sp_engine_type.setAdapter(engineTypeAdapter);
 
-        checkValues(iconStyleSpinnerAdapter, engineTypeAdapter);
+        ArrayAdapter<CharSequence> clickMethodAdapter = ArrayAdapter.createFromResource(this,
+                R.array.click_methods, android.R.layout.simple_spinner_item);
+        clickMethodAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        sp_click_method.setAdapter(clickMethodAdapter);
+
+        checkValues(iconStyleSpinnerAdapter, engineTypeAdapter, clickMethodAdapter);
 
         bt_saveBossKeyValue.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -117,6 +123,15 @@ public class GuiActivity extends AppCompatActivity {
                 Toast.makeText(GuiActivity.this, "New confirm key is : "+keyValue, Toast.LENGTH_SHORT).show();
                 updateFromPreferences();
             }
+        });
+
+        sp_click_method.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                appPreferences.setClickMethod((String) parent.getItemAtPosition(position));
+                updateFromPreferences();
+            }
+            @Override public void onNothingSelected(AdapterView<?> parent) {}
         });
 
         sp_engine_type.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -222,7 +237,7 @@ public class GuiActivity extends AppCompatActivity {
         });
     }
 
-    private void checkValues(IconStyleSpinnerAdapter adapter, ArrayAdapter<CharSequence> engineTypeAdapter) {
+    private void checkValues(IconStyleSpinnerAdapter adapter, ArrayAdapter<CharSequence> engineTypeAdapter, ArrayAdapter<CharSequence> clickMethodAdapter) {
         String val = String.valueOf(appPreferences.getBossKeyValue());
         et_boss_override.setText(val);
         String val2 = String.valueOf(appPreferences.getConfirmKeyValue());
@@ -233,6 +248,9 @@ public class GuiActivity extends AppCompatActivity {
 
         String engineType = appPreferences.getEngineType();
         sp_engine_type.setSelection(engineTypeAdapter.getPosition(engineType));
+        String clickMethod = appPreferences.getClickMethod();
+        int clickMethodPosition = clickMethodAdapter.getPosition(clickMethod);
+        sp_click_method.setSelection(clickMethodPosition >= 0 ? clickMethodPosition : 0);
 
         int mouseSize = appPreferences.getMouseSizePref();
         dsbar_mouse_size.setProgress(Math.max(Math.min(mouseSize, dsbar_mouse_size.getMax()), 0));
