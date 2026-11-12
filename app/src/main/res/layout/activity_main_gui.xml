@@ -234,6 +234,42 @@
                 android:spinnerMode="dropdown" />
         </LinearLayout>
 
+        <LinearLayout
+            android:id="@+id/click_method"
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:orientation="horizontal"
+            android:weightSum="1">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_weight="0.20"
+                android:text="Click Method"
+                android:textAlignment="textStart"
+                android:textColor="@color/white"
+                android:textSize="20.0sp" />
+
+            <Spinner
+                android:id="@+id/sp_click_method"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_weight="0.80"
+                android:drawSelectorOnTop="true"
+                android:popupBackground="@drawable/focus_selector"
+                android:dropDownWidth="match_parent"
+                android:nextFocusUp="@id/sp_engine_type"
+                android:nextFocusDown="@id/cb_border_window"
+                android:spinnerMode="dropdown" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Original, Modified, Accessibility, Shell, or Combined (may click more than once)"
+            android:textColor="@color/white"
+            android:textSize="12sp" />
+
         <CheckBox
             android:id="@+id/cb_border_window"
             android:layout_width="match_parent"
