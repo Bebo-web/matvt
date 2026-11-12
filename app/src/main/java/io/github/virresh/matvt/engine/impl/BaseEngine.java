@@ -1,6 +1,10 @@
 package io.github.virresh.matvt.engine.impl;
 
 import android.accessibilityservice.AccessibilityService;
+import android.accessibilityservice.GestureDescription;
+import android.graphics.Path;
+import java.io.IOException;
+import io.github.virresh.matvt.services.MouseEventService;
 import android.content.Context;
 import android.graphics.Point;
 import android.graphics.PointF;
@@ -124,6 +128,69 @@ public abstract class BaseEngine implements MouseEmulationEngine {
 
     abstract protected int scroll(KeyEvent ke);
     abstract protected int click(KeyEvent ke);
+
+    /**
+     * Dispatch a normal click using the independently selected click strategy.
+     * The strategy is shared by every mouse engine.
+     */
+    protected void dispatchConfiguredClick() {
+        if (mService == null) return;
+        PointF originalPoint = mPointerControl.getPointerLocation();
+        PointF screenPoint = mPointerControl.getPointerScreenLocation();
+        String method = appPreferences.getClickMethod();
+        Log.i(LOG_TAG, "Selected click method: " + method + " at " + screenPoint.x + "," + screenPoint.y);
+
+        if ("original".equals(method)) {
+            dispatchClickGesture(originalPoint, false);
+        } else if ("modified".equals(method)) {
+            dispatchClickGesture(screenPoint, true);
+        } else if ("accessibility".equals(method)) {
+            dispatchAccessibilityClick(screenPoint);
+        } else if ("shell".equals(method)) {
+            dispatchShellTap(screenPoint);
+        } else if ("combined".equals(method)) {
+            dispatchClickGesture(originalPoint, false);
+            dispatchClickGesture(screenPoint, true);
+            dispatchAccessibilityClick(screenPoint);
+            dispatchShellTap(screenPoint);
+        } else {
+            dispatchClickGesture(originalPoint, false);
+        }
+    }
+
+    private void dispatchClickGesture(PointF point, boolean modified) {
+        Path path = new Path();
+        path.moveTo(point.x, point.y);
+        long duration = 1L;
+        if (modified) {
+            path.lineTo(point.x + 1f, point.y + 1f);
+            duration = 40L;
+        }
+        GestureDescription.StrokeDescription stroke =
+                new GestureDescription.StrokeDescription(path, 0, duration);
+        GestureDescription gesture = new GestureDescription.Builder().addStroke(stroke).build();
+        boolean accepted = mService.dispatchGesture(gesture, null, null);
+        Log.i(LOG_TAG, (modified ? "Modified" : "Original") + " gesture accepted=" + accepted);
+    }
+
+    private void dispatchAccessibilityClick(PointF point) {
+        if (mService instanceof MouseEventService) {
+            boolean result = ((MouseEventService) mService).clickAccessibilityNodeAt(point.x, point.y);
+            Log.i(LOG_TAG, "Accessibility click result=" + result);
+        } else {
+            Log.w(LOG_TAG, "Accessibility click unavailable for this service instance");
+        }
+    }
+
+    private void dispatchShellTap(PointF point) {
+        try {
+            Runtime.getRuntime().exec(new String[]{"sh", "-c",
+                    "input tap " + Math.round(point.x) + " " + Math.round(point.y)});
+            Log.i(LOG_TAG, "Shell input tap command dispatched");
+        } catch (IOException exception) {
+            Log.e(LOG_TAG, "Shell input tap failed", exception);
+        }
+    }
 
     protected void onDragStart(PointF point) {}
     protected void onDragMove(PointF point) {}
