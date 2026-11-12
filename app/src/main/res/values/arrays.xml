@@ -4,4 +4,11 @@
         <item>shell</item>
         <item>hybrid</item>
     </string-array>
+    <string-array name="click_methods">
+        <item>original</item>
+        <item>modified</item>
+        <item>accessibility</item>
+        <item>shell</item>
+        <item>combined</item>
+    </string-array>
 </resources>
