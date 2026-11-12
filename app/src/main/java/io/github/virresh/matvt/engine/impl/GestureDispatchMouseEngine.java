@@ -44,23 +44,8 @@ public class GestureDispatchMouseEngine extends BaseEngine {
     @Override
     protected int click(KeyEvent ke) {
         PointF pointer = mPointerControl.getPointerScreenLocation();
-        Log.i(LOG_TAG, "Dispatch click at screen coordinates x=" + pointer.x + ", y=" + pointer.y);
         if (!scrollCodeMap.containsKey(ke.getKeyCode())) {
-            // Intentionally dispatch BOTH click mechanisms for every normal click.
-            // Accessibility ACTION_CLICK can report false (or fail to represent
-            // keyboard keys) even when it has acted on the target. Therefore its
-            // return value must not suppress MATVT's original gesture click.
-            if (mService instanceof MouseEventService) {
-                boolean accessibilityResult = ((MouseEventService) mService)
-                        .clickAccessibilityNodeAt(pointer.x, pointer.y);
-                Log.i(LOG_TAG, "Accessibility node click result=" + accessibilityResult);
-            }
-
-            // Keep the original MATVT click path active as well. This is essential
-            // for on-screen keyboards and other surfaces not exposed as clickable
-            // accessibility nodes.
-            Log.i(LOG_TAG, "Dispatching original MATVT gesture click alongside accessibility click");
-            mService.dispatchGesture(createClick(pointer, 40), gestureResultCallback, null);
+            dispatchConfiguredClick();
         } else {
             int direction = scrollCodeMap.get(ke.getKeyCode());
             mService.dispatchGesture(createSwipe(pointer, direction, 100, scrollSpeed), gestureResultCallback, null);
