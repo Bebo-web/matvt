@@ -58,8 +58,7 @@ public class HybridMouseEngine extends BaseEngine {
     @Override
     protected int click(KeyEvent ke) {
         if (mService != null) {
-            PointF pointer = mPointerControl.getPointerLocation();
-            shellTap((int) pointer.x, (int) pointer.y);
+            dispatchConfiguredClick();
         }
         return 0;
     }
