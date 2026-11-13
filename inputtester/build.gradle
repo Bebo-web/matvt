@@ -1,0 +1,9 @@
+plugins { id 'com.android.application' }
+android {
+ namespace 'io.github.beboweb.shizukuinputtester'
+ compileSdk 33
+ defaultConfig { applicationId 'io.github.beboweb.shizukuinputtester'; minSdk 23; targetSdk 32; versionCode 1; versionName '1.0' }
+ buildFeatures { aidl true }
+ compileOptions { sourceCompatibility JavaVersion.VERSION_11; targetCompatibility JavaVersion.VERSION_11 }
+}
+dependencies { implementation 'dev.rikka.shizuku:api:13.1.5' }
