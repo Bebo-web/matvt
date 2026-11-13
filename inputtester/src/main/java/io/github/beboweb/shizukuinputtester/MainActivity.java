@@ -102,7 +102,7 @@ public class MainActivity extends Activity {
 
         serviceArgs = new Shizuku.UserServiceArgs(
                 new ComponentName(getPackageName(), InputUserService.class.getName()))
-                .daemon(false).processNameSuffix("input").debuggable(false).version(1);
+                .daemon(false).tag("shizuku-input-tester").processNameSuffix("input").debuggable(true).version(2);
 
         connect.setOnClickListener(v -> connectToShizuku());
         touch.setOnClickListener(v -> inject(InputDevice.SOURCE_TOUCHSCREEN));
@@ -143,18 +143,18 @@ public class MainActivity extends Activity {
 
     private void bindInputService() {
         try {
-            status.setText("Starting Shizuku UserService (12-second timeout)...");
-            appendLog("BIND_REQUEST");
+            status.setText("Starting Shizuku UserService (30-second diagnostic timeout)...");
+            appendLog("BIND_REQUEST apiVersion=" + Shizuku.getVersion() + " shizukuUid=" + Shizuku.getUid() + " appUid=" + android.os.Process.myUid());
             if (bindTimeout != null) handler.removeCallbacks(bindTimeout);
             bindTimeout = () -> {
                 if (service == null) {
-                    status.setText("TIMEOUT: UserService did not connect within 12 seconds.");
-                    appendLog("BIND_TIMEOUT 12000ms");
+                    status.setText("TIMEOUT: UserService Binder callback not received within 30 seconds.");
+                    appendLog("BIND_TIMEOUT 30000ms; inspect Shizuku server logcat for UserService start/attach failure");
                     try { Shizuku.unbindUserService(serviceArgs, connection, true); }
                     catch (Throwable error) { appendLog("UNBIND_ERROR " + error); }
                 }
             };
-            handler.postDelayed(bindTimeout, 12000);
+            handler.postDelayed(bindTimeout, 30000);
             Shizuku.bindUserService(serviceArgs, connection);
         } catch (Throwable error) {
             if (bindTimeout != null) handler.removeCallbacks(bindTimeout);
