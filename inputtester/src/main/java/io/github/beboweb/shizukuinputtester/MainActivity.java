@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.content.ComponentName;
-import android.content.pm.PackageManager;
 import android.content.ServiceConnection;
 import android.view.InputDevice;
 import android.widget.Button;
@@ -24,11 +23,13 @@ public class MainActivity extends Activity {
     private IInputService service;
     private Shizuku.UserServiceArgs serviceArgs;
     private boolean listenersRegistered;
+    private final android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private Runnable bindTimeout;
 
     private final Shizuku.OnRequestPermissionResultListener permissionListener =
             (requestCode, result) -> {
                 if (requestCode != REQUEST_CODE) return;
-                if (result == PackageManager.PERMISSION_GRANTED) {
+                if (result == 0) {
                     bindInputService();
                 } else {
                     status.setText("Shizuku permission denied. Grant permission and retry.");
@@ -41,6 +42,7 @@ public class MainActivity extends Activity {
     private final ServiceConnection connection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder binder) {
+            if (bindTimeout != null) handler.removeCallbacks(bindTimeout);
             service = IInputService.Stub.asInterface(binder);
             try {
                 status.setText("Connected to Shell service: " + service.getIdentity());
@@ -51,6 +53,7 @@ public class MainActivity extends Activity {
 
         @Override
         public void onServiceDisconnected(ComponentName name) {
+            if (bindTimeout != null) handler.removeCallbacks(bindTimeout);
             service = null;
             status.setText("Shell service disconnected.");
         }
@@ -146,15 +149,26 @@ public class MainActivity extends Activity {
 
     private void bindInputService() {
         try {
+            status.setText("Starting Shizuku UserService (timeout: 12 seconds)...");
+            appendLog("BIND_REQUEST uid=" + android.os.Process.myUid());
+            if (bindTimeout != null) handler.removeCallbacks(bindTimeout);
+            bindTimeout = () -> {
+                if (service == null) {
+                    status.setText("TIMEOUT: Shizuku did not connect the UserService within 12 seconds.");
+                    appendLog("BIND_TIMEOUT after 12000ms. Check UserService class, Shizuku root mode, and authorization.");
+                    try { Shizuku.unbindUserService(serviceArgs, connection, true); } catch (Throwable ignored) { }
+                }
+            };
+            handler.postDelayed(bindTimeout, 12000);
             Shizuku.bindUserService(serviceArgs, connection);
-            status.setText("Starting Shell UserService...");
         } catch (Throwable error) {
-            status.setText("Could not start Shell service: " + error);
-            output.setText(android.util.Log.getStackTraceString(error));
+            if (bindTimeout != null) handler.removeCallbacks(bindTimeout);
+            status.setText("Could not start Shizuku UserService: " + error);
+            appendLog("BIND_EXCEPTION " + android.util.Log.getStackTraceString(error));
         }
     }
 
-    private void inject(int source) {
+    private void appendLog(String line) {\n        String entry = java.text.DateFormat.getDateTimeInstance().format(new java.util.Date()) + " " + line;\n        output.append(entry + "\\n");\n        android.util.Log.i("ShizukuInputTester", entry);\n        try (java.io.FileOutputStream stream = openFileOutput("tester-log.txt", MODE_APPEND)) {\n            stream.write((entry + "\\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));\n        } catch (Throwable ignored) { }\n    }\n\n    private void inject(int source) {
         if (service == null) {
             output.setText("Connect to Shizuku first.");
             return;
@@ -178,7 +192,7 @@ public class MainActivity extends Activity {
             } catch (Throwable ignored) {
             }
         }
-        if (service != null && serviceArgs != null) {
+        if (bindTimeout != null) handler.removeCallbacks(bindTimeout);\n        if (service != null && serviceArgs != null) {
             try {
                 Shizuku.unbindUserService(serviceArgs, connection, true);
             } catch (Throwable ignored) {
