@@ -4,6 +4,10 @@ import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.GestureDescription;
 import android.graphics.Path;
 import java.io.IOException;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import io.github.virresh.matvt.services.MouseEventService;
 import android.content.Context;
 import android.graphics.Point;
@@ -66,6 +70,13 @@ public abstract class BaseEngine implements MouseEmulationEngine {
     private Point DPAD_Center_Init_Point = new Point();
     private CountDownTimer confirmLongPressTimer;
     private boolean dragStarted = false;
+
+    // One authenticated root shell is reused for all Shell-method taps.
+    // This avoids spawning a new su process (and Magisk authorization check)
+    // for every click.
+    private final Object rootShellLock = new Object();
+    private Process rootShellProcess;
+    private BufferedWriter rootShellInput;
 
     // tells which keycodes correspond to which pointer movement in scroll and movement mode
     // scroll directions don't match keycode instruction because that's how swiping works
@@ -186,30 +197,67 @@ public abstract class BaseEngine implements MouseEmulationEngine {
 
     private void dispatchShellTap(PointF point) {
         // The app UID cannot reliably inject input outside its own window.
-        // Use the device's existing root capability so the tap reaches the
-        // system-wide screen at the cursor's absolute screen coordinates.
+        // Keep one root shell alive and send each tap through its stdin.
         final int x = Math.round(point.x);
         final int y = Math.round(point.y);
         Thread shellTapThread = new Thread(() -> {
-            Process process = null;
-            try {
-                process = Runtime.getRuntime().exec(new String[]{
-                        "su", "-c", "input tap " + x + " " + y
-                });
-                int exitCode = process.waitFor();
-                Log.i(LOG_TAG, "Root shell tap (" + x + "," + y + ") exit=" + exitCode);
-            } catch (IOException exception) {
-                Log.e(LOG_TAG, "Root shell tap failed", exception);
-            } catch (InterruptedException exception) {
-                Thread.currentThread().interrupt();
-                Log.e(LOG_TAG, "Root shell tap interrupted", exception);
-            } finally {
-                if (process != null) {
-                    process.destroy();
+            synchronized (rootShellLock) {
+                try {
+                    ensureRootShellLocked();
+                    rootShellInput.write("input tap " + x + " " + y);
+                    rootShellInput.newLine();
+                    rootShellInput.flush();
+                    Log.d(LOG_TAG, "Queued root shell tap (" + x + "," + y + ")");
+                } catch (IOException exception) {
+                    Log.e(LOG_TAG, "Persistent root shell tap failed; resetting session", exception);
+                    closeRootShellLocked();
                 }
             }
         }, "MATVT-RootShellTap");
         shellTapThread.start();
+    }
+
+    private void ensureRootShellLocked() throws IOException {
+        if (rootShellProcess != null && rootShellInput != null && rootShellProcess.isAlive()) {
+            return;
+        }
+        closeRootShellLocked();
+        rootShellProcess = new ProcessBuilder("su").start();
+        rootShellInput = new BufferedWriter(
+                new OutputStreamWriter(rootShellProcess.getOutputStream()));
+
+        // Drain both streams so a full pipe can never block the root shell.
+        drainRootShellStream(rootShellProcess.getInputStream(), "MATVT-RootShell-stdout");
+        drainRootShellStream(rootShellProcess.getErrorStream(), "MATVT-RootShell-stderr");
+        Log.i(LOG_TAG, "Persistent root shell started");
+    }
+
+    private void drainRootShellStream(java.io.InputStream stream, String threadName) {
+        Thread drainThread = new Thread(() -> {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream))) {
+                while (reader.readLine() != null) {
+                    // Root shell output is intentionally drained; command failures
+                    // are detected through process/session errors and logcat.
+                }
+            } catch (IOException exception) {
+                Log.d(LOG_TAG, threadName + " closed: " + exception.getMessage());
+            }
+        }, threadName);
+        drainThread.setDaemon(true);
+        drainThread.start();
+    }
+
+    private void closeRootShellLocked() {
+        if (rootShellInput != null) {
+            try {
+                rootShellInput.close();
+            } catch (IOException ignored) { }
+            rootShellInput = null;
+        }
+        if (rootShellProcess != null) {
+            rootShellProcess.destroy();
+            rootShellProcess = null;
+        }
     }
 
     protected void onDragStart(PointF point) {}
@@ -288,6 +336,9 @@ public abstract class BaseEngine implements MouseEmulationEngine {
 
     @Override
     public void destroy() {
+        synchronized (rootShellLock) {
+            closeRootShellLocked();
+        }
         this.mService = null;
     }
 
