@@ -8,8 +8,6 @@ import android.view.InputDevice;
 import android.view.InputEvent;
 import android.view.MotionEvent;
 
-import androidx.annotation.Keep;
-
 import java.lang.reflect.Method;
 
 /**
@@ -19,7 +17,6 @@ public final class InputUserService extends IInputService.Stub {
     private static final String TAG = "ShizukuInputTest";
 
     /** Shizuku v13+ prefers this constructor. The supplied Context is limited. */
-    @Keep
     public InputUserService(Context context) {
         Log.i(TAG, "USER_SERVICE_CONTEXT_CONSTRUCTOR context="
                 + (context == null ? "null" : context.getClass().getName())
