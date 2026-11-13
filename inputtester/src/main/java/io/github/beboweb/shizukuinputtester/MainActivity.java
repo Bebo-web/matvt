@@ -3,6 +3,8 @@ package io.github.beboweb.shizukuinputtester;
 import android.app.Activity;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.os.Handler;
+import android.os.Looper;
 import android.content.ComponentName;
 import android.content.ServiceConnection;
 import android.view.InputDevice;
@@ -15,7 +17,6 @@ import rikka.shizuku.Shizuku;
 
 public class MainActivity extends Activity {
     private static final int REQUEST_CODE = 71;
-
     private TextView status;
     private TextView output;
     private EditText x;
@@ -23,53 +24,50 @@ public class MainActivity extends Activity {
     private IInputService service;
     private Shizuku.UserServiceArgs serviceArgs;
     private boolean listenersRegistered;
-    private final android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Handler handler = new Handler(Looper.getMainLooper());
     private Runnable bindTimeout;
 
     private final Shizuku.OnRequestPermissionResultListener permissionListener =
             (requestCode, result) -> {
                 if (requestCode != REQUEST_CODE) return;
-                if (result == 0) {
-                    bindInputService();
-                } else {
-                    status.setText("Shizuku permission denied. Grant permission and retry.");
-                }
+                if (result == 0) bindInputService();
+                else status.setText("Shizuku permission denied. Grant permission and retry.");
             };
 
     private final Shizuku.OnBinderReceivedListener binderListener =
             () -> runOnUiThread(() -> status.setText("Shizuku binder connected. Tap Connect."));
 
     private final ServiceConnection connection = new ServiceConnection() {
-        @Override
-        public void onServiceConnected(ComponentName name, IBinder binder) {
+        @Override public void onServiceConnected(ComponentName name, IBinder binder) {
             if (bindTimeout != null) handler.removeCallbacks(bindTimeout);
             service = IInputService.Stub.asInterface(binder);
             try {
-                status.setText("Connected to Shell service: " + service.getIdentity());
+                String identity = service.getIdentity();
+                status.setText("CONNECTED: " + identity);
+                appendLog("SERVICE_CONNECTED " + identity);
             } catch (Throwable error) {
-                status.setText("Service connected, identity check failed: " + error);
+                status.setText("Binder connected; identity failed: " + error);
+                appendLog("IDENTITY_ERROR " + android.util.Log.getStackTraceString(error));
             }
         }
 
-        @Override
-        public void onServiceDisconnected(ComponentName name) {
+        @Override public void onServiceDisconnected(ComponentName name) {
             if (bindTimeout != null) handler.removeCallbacks(bindTimeout);
             service = null;
-            status.setText("Shell service disconnected.");
+            status.setText("UserService disconnected.");
+            appendLog("SERVICE_DISCONNECTED");
         }
     };
 
-    @Override
-    public void onCreate(Bundle state) {
+    @Override public void onCreate(Bundle state) {
         super.onCreate(state);
-
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
         int padding = (int) (24 * getResources().getDisplayMetrics().density);
         layout.setPadding(padding, padding, padding, padding);
 
         status = new TextView(this);
-        status.setText("Tester opened. Shizuku connection has not been checked yet.");
+        status.setText("Tester opened. Start Shizuku, then connect.");
         layout.addView(status);
 
         x = new EditText(this);
@@ -87,11 +85,9 @@ public class MainActivity extends Activity {
         Button connect = new Button(this);
         connect.setText("Connect to Shizuku");
         layout.addView(connect);
-
         Button touch = new Button(this);
         touch.setText("Inject TOUCH tap");
         layout.addView(touch);
-
         Button mouse = new Button(this);
         mouse.setText("Inject MOUSE tap");
         layout.addView(mouse);
@@ -99,104 +95,112 @@ public class MainActivity extends Activity {
         output = new TextView(this);
         output.setTextIsSelectable(true);
         layout.addView(output);
-
         TextView note = new TextView(this);
         note.setText("Coordinates are physical screen pixels. Test on a harmless target.");
         layout.addView(note);
-
         setContentView(layout);
 
         serviceArgs = new Shizuku.UserServiceArgs(
                 new ComponentName(getPackageName(), InputUserService.class.getName()))
-                .daemon(false)
-                .processNameSuffix("input")
-                .debuggable(false)
-                .version(1);
+                .daemon(false).processNameSuffix("input").debuggable(false).version(1);
 
-        connect.setOnClickListener(view -> connectToShizuku());
-        touch.setOnClickListener(view -> inject(InputDevice.SOURCE_TOUCHSCREEN));
-        mouse.setOnClickListener(view -> inject(InputDevice.SOURCE_MOUSE));
+        connect.setOnClickListener(v -> connectToShizuku());
+        touch.setOnClickListener(v -> inject(InputDevice.SOURCE_TOUCHSCREEN));
+        mouse.setOnClickListener(v -> inject(InputDevice.SOURCE_MOUSE));
 
-        // Register listeners only after the UI exists; a Shizuku-side problem
-        // must be shown on screen rather than closing the tester at launch.
         try {
             Shizuku.addBinderReceivedListenerSticky(binderListener);
             Shizuku.addRequestPermissionResultListener(permissionListener);
             listenersRegistered = true;
+            appendLog("APP_READY package=" + getPackageName()
+                    + " appUid=" + android.os.Process.myUid()
+                    + " shizukuBinder=" + Shizuku.pingBinder());
         } catch (Throwable error) {
-            status.setText("UI opened, but Shizuku initialization failed: " + error);
-            output.setText(android.util.Log.getStackTraceString(error));
+            status.setText("UI ready, Shizuku init error: " + error);
+            appendLog("INIT_ERROR " + android.util.Log.getStackTraceString(error));
         }
     }
 
     private void connectToShizuku() {
         try {
             if (!Shizuku.pingBinder()) {
-                status.setText("Shizuku is not reachable. Start Shizuku, then retry.");
+                status.setText("Shizuku binder unavailable. Start Shizuku first.");
+                appendLog("PING_BINDER_FALSE");
                 return;
             }
-            if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
+            if (Shizuku.checkSelfPermission() != 0) {
+                status.setText("Requesting Shizuku permission...");
                 Shizuku.requestPermission(REQUEST_CODE);
-                status.setText("Waiting for Shizuku permission...");
                 return;
             }
+            appendLog("PERMISSION_GRANTED; requesting UserService");
             bindInputService();
         } catch (Throwable error) {
             status.setText("Shizuku connection error: " + error);
-            output.setText(android.util.Log.getStackTraceString(error));
+            appendLog("CONNECT_ERROR " + android.util.Log.getStackTraceString(error));
         }
     }
 
     private void bindInputService() {
         try {
-            status.setText("Starting Shizuku UserService (timeout: 12 seconds)...");
-            appendLog("BIND_REQUEST uid=" + android.os.Process.myUid());
+            status.setText("Starting Shizuku UserService (12-second timeout)...");
+            appendLog("BIND_REQUEST");
             if (bindTimeout != null) handler.removeCallbacks(bindTimeout);
             bindTimeout = () -> {
                 if (service == null) {
-                    status.setText("TIMEOUT: Shizuku did not connect the UserService within 12 seconds.");
-                    appendLog("BIND_TIMEOUT after 12000ms. Check UserService class, Shizuku root mode, and authorization.");
-                    try { Shizuku.unbindUserService(serviceArgs, connection, true); } catch (Throwable ignored) { }
+                    status.setText("TIMEOUT: UserService did not connect within 12 seconds.");
+                    appendLog("BIND_TIMEOUT 12000ms");
+                    try { Shizuku.unbindUserService(serviceArgs, connection, true); }
+                    catch (Throwable error) { appendLog("UNBIND_ERROR " + error); }
                 }
             };
             handler.postDelayed(bindTimeout, 12000);
             Shizuku.bindUserService(serviceArgs, connection);
         } catch (Throwable error) {
             if (bindTimeout != null) handler.removeCallbacks(bindTimeout);
-            status.setText("Could not start Shizuku UserService: " + error);
+            status.setText("Could not start UserService: " + error);
             appendLog("BIND_EXCEPTION " + android.util.Log.getStackTraceString(error));
         }
     }
 
-    private void appendLog(String line) {\n        String entry = java.text.DateFormat.getDateTimeInstance().format(new java.util.Date()) + " " + line;\n        output.append(entry + "\\n");\n        android.util.Log.i("ShizukuInputTester", entry);\n        try (java.io.FileOutputStream stream = openFileOutput("tester-log.txt", MODE_APPEND)) {\n            stream.write((entry + "\\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));\n        } catch (Throwable ignored) { }\n    }\n\n    private void inject(int source) {
+    private void appendLog(String line) {
+        String entry = java.text.DateFormat.getDateTimeInstance().format(new java.util.Date())
+                + " " + line;
+        if (output != null) output.append(entry + "\n");
+        android.util.Log.i("ShizukuInputTester", entry);
+        try (java.io.FileOutputStream stream =
+                     openFileOutput("tester-log.txt", MODE_APPEND)) {
+            stream.write((entry + "\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        } catch (Throwable ignored) { }
+    }
+
+    private void inject(int source) {
         if (service == null) {
-            output.setText("Connect to Shizuku first.");
+            appendLog("INJECT_REJECTED service_not_connected");
             return;
         }
         try {
             int px = Integer.parseInt(x.getText().toString().trim());
             int py = Integer.parseInt(y.getText().toString().trim());
-            output.setText(service.injectTap(px, py, source));
+            String result = service.injectTap(px, py, source);
+            output.append(result + "\n");
+            appendLog("INJECT_RESULT " + result);
         } catch (Throwable error) {
-            output.setText("Injection error: " + error + "\\n"
-                    + android.util.Log.getStackTraceString(error));
+            appendLog("INJECT_ERROR " + android.util.Log.getStackTraceString(error));
         }
     }
 
-    @Override
-    protected void onDestroy() {
+    @Override protected void onDestroy() {
+        if (bindTimeout != null) handler.removeCallbacks(bindTimeout);
         if (listenersRegistered) {
             try {
                 Shizuku.removeBinderReceivedListener(binderListener);
                 Shizuku.removeRequestPermissionResultListener(permissionListener);
-            } catch (Throwable ignored) {
-            }
+            } catch (Throwable ignored) { }
         }
-        if (bindTimeout != null) handler.removeCallbacks(bindTimeout);\n        if (service != null && serviceArgs != null) {
-            try {
-                Shizuku.unbindUserService(serviceArgs, connection, true);
-            } catch (Throwable ignored) {
-            }
+        if (service != null && serviceArgs != null) {
+            try { Shizuku.unbindUserService(serviceArgs, connection, true); }
+            catch (Throwable ignored) { }
         }
         super.onDestroy();
     }
