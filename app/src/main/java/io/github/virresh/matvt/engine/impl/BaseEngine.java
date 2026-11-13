@@ -161,7 +161,9 @@ public abstract class BaseEngine implements MouseEmulationEngine {
     private void dispatchClickGesture(PointF point, boolean modified) {
         Path path = new Path();
         path.moveTo(point.x, point.y);
-        long duration = 1L;
+        // Match the upstream MATVT click stroke: moveTo-only, 2 ms.
+        // Modified remains an independent, explicit short movement gesture.
+        long duration = 2L;
         if (modified) {
             path.lineTo(point.x + 1f, point.y + 1f);
             duration = 40L;
@@ -183,13 +185,31 @@ public abstract class BaseEngine implements MouseEmulationEngine {
     }
 
     private void dispatchShellTap(PointF point) {
-        try {
-            Runtime.getRuntime().exec(new String[]{"sh", "-c",
-                    "input tap " + Math.round(point.x) + " " + Math.round(point.y)});
-            Log.i(LOG_TAG, "Shell input tap command dispatched");
-        } catch (IOException exception) {
-            Log.e(LOG_TAG, "Shell input tap failed", exception);
-        }
+        // The app UID cannot reliably inject input outside its own window.
+        // Use the device's existing root capability so the tap reaches the
+        // system-wide screen at the cursor's absolute screen coordinates.
+        final int x = Math.round(point.x);
+        final int y = Math.round(point.y);
+        Thread shellTapThread = new Thread(() -> {
+            Process process = null;
+            try {
+                process = Runtime.getRuntime().exec(new String[]{
+                        "su", "-c", "input tap " + x + " " + y
+                });
+                int exitCode = process.waitFor();
+                Log.i(LOG_TAG, "Root shell tap (" + x + "," + y + ") exit=" + exitCode);
+            } catch (IOException exception) {
+                Log.e(LOG_TAG, "Root shell tap failed", exception);
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                Log.e(LOG_TAG, "Root shell tap interrupted", exception);
+            } finally {
+                if (process != null) {
+                    process.destroy();
+                }
+            }
+        }, "MATVT-RootShellTap");
+        shellTapThread.start();
     }
 
     protected void onDragStart(PointF point) {}
