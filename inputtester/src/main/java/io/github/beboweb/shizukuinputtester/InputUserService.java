@@ -1,6 +1,7 @@
 package io.github.beboweb.shizukuinputtester;
 
 import android.content.Intent;
+import android.app.Service;
 import android.os.IBinder;
 import android.os.Process;
 import android.os.SystemClock;
@@ -10,13 +11,12 @@ import android.view.MotionEvent;
 import android.util.Log;
 import java.lang.reflect.Method;
 
-import rikka.shizuku.Shizuku;
 
 /**
  * Shizuku UserService process. The framework binds this class and receives
  * the AIDL binder returned by onBind().
  */
-public final class InputUserService extends Shizuku.UserService {
+public final class InputUserService extends Service {
     private final IInputService.Stub binder = new IInputService.Stub() {
         @Override public void destroy() { stopSelf(); }
 
