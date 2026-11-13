@@ -1,5 +1,6 @@
 package io.github.beboweb.shizukuinputtester;
 
+import android.content.Context;
 import android.os.Process;
 import android.os.SystemClock;
 import android.util.Log;
@@ -7,22 +8,31 @@ import android.view.InputDevice;
 import android.view.InputEvent;
 import android.view.MotionEvent;
 
+import androidx.annotation.Keep;
+
 import java.lang.reflect.Method;
 
 /**
- * Shizuku UserService entry point.
- *
- * IMPORTANT: Shizuku instantiates this class directly and expects an IBinder.
- * It is NOT an Android started/bound Service, so it must extend the generated
- * AIDL Stub rather than android.app.Service.
+ * Shizuku UserService entry point. This is an AIDL Binder, not an Android Service.
  */
 public final class InputUserService extends IInputService.Stub {
     private static final String TAG = "ShizukuInputTest";
 
-    public InputUserService() {
-        Log.i(TAG, "USER_SERVICE_CONSTRUCTOR pid=" + Process.myPid()
+    /** Shizuku v13+ prefers this constructor. The supplied Context is limited. */
+    @Keep
+    public InputUserService(Context context) {
+        Log.i(TAG, "USER_SERVICE_CONTEXT_CONSTRUCTOR context="
+                + (context == null ? "null" : context.getClass().getName())
+                + " pid=" + Process.myPid()
                 + " uid=" + Process.myUid()
-                + " is64Bit=" + android.os.Process.is64Bit());
+                + " is64Bit=" + Process.is64Bit());
+    }
+
+    /** Fallback for older Shizuku versions. */
+    public InputUserService() {
+        Log.i(TAG, "USER_SERVICE_DEFAULT_CONSTRUCTOR pid=" + Process.myPid()
+                + " uid=" + Process.myUid()
+                + " is64Bit=" + Process.is64Bit());
     }
 
     @Override
@@ -35,7 +45,7 @@ public final class InputUserService extends IInputService.Stub {
     public String getIdentity() {
         String identity = "pid=" + Process.myPid()
                 + " uid=" + Process.myUid()
-                + " is64Bit=" + android.os.Process.is64Bit();
+                + " is64Bit=" + Process.is64Bit();
         Log.i(TAG, "GET_IDENTITY " + identity);
         return identity;
     }
