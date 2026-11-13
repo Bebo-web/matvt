@@ -1,2 +1,2 @@
-include ':app'
+include ':app', ':inputtester'
 rootProject.name = "MATVT - Mouse for Android TV Toggle"
