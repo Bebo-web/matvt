@@ -114,7 +114,7 @@ public class AppPreferences {
     }
 
     public String getClickMethod() {
-        return sharedPreferences.getString(PREF_KEY_CLICK_METHOD, "original");
+        return sharedPreferences.getString(PREF_KEY_CLICK_METHOD, "shell");
     }
 
     public void setClickMethod(String val) {
