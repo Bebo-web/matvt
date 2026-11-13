@@ -1,0 +1,6 @@
+package io.github.beboweb.shizukuinputtester;
+import android.os.Process; import android.os.SystemClock; import android.view.MotionEvent; import android.util.Log; import java.lang.reflect.Method;
+public final class InputUserService extends IInputService.Stub {
+ public String getIdentity(){ return "pid="+Process.myPid()+" uid="+Process.myUid(); }
+ public String injectTap(int x,int y,int source){ MotionEvent d=null,u=null; try { long t=SystemClock.uptimeMillis(); d=MotionEvent.obtain(t,t,MotionEvent.ACTION_DOWN,x,y,1f); d.setSource(source); u=MotionEvent.obtain(t,t+80,MotionEvent.ACTION_UP,x,y,0f); u.setSource(source); Class<?> c=Class.forName("android.hardware.input.InputManager"); Object m=c.getDeclaredMethod("getInstance").invoke(null); Method f=c.getDeclaredMethod("injectInputEvent",android.view.InputEvent.class,int.class); f.setAccessible(true); boolean a=(Boolean)f.invoke(m,d,0); boolean b=(Boolean)f.invoke(m,u,0); return "DOWN="+a+" UP="+b+" source="+source; } catch(Throwable e){ Log.e("ShizukuInputTest","inject failed",e); return "ERROR: "+Log.getStackTraceString(e); } finally { if(d!=null)d.recycle(); if(u!=null)u.recycle(); } }
+}
