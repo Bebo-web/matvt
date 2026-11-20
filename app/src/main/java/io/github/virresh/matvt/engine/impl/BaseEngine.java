@@ -196,25 +196,37 @@ public abstract class BaseEngine implements MouseEmulationEngine {
     }
 
     private void dispatchShellTap(PointF point) {
-        // The app UID cannot reliably inject input outside its own window.
-        // Keep one root shell alive and send each tap through its stdin.
-        final int x = Math.round(point.x);
-        final int y = Math.round(point.y);
-        Thread shellTapThread = new Thread(() -> {
+        dispatchRootShellCommand("input tap " + Math.round(point.x) + " " + Math.round(point.y),
+                "MATVT-RootShellTap");
+    }
+
+    /**
+     * Dispatch a swipe through the same persistent root shell used for taps.
+     * Android's input command injects a complete DOWN/MOVE/UP swipe sequence.
+     */
+    protected void dispatchRootShellSwipe(PointF start, PointF end, int durationMs) {
+        int safeDuration = Math.max(40, Math.min(durationMs, 1000));
+        String command = "input swipe " + Math.round(start.x) + " " + Math.round(start.y)
+                + " " + Math.round(end.x) + " " + Math.round(end.y) + " " + safeDuration;
+        dispatchRootShellCommand(command, "MATVT-RootShellSwipe");
+    }
+
+    private void dispatchRootShellCommand(String command, String threadName) {
+        Thread shellCommandThread = new Thread(() -> {
             synchronized (rootShellLock) {
                 try {
                     ensureRootShellLocked();
-                    rootShellInput.write("input tap " + x + " " + y);
+                    rootShellInput.write(command);
                     rootShellInput.newLine();
                     rootShellInput.flush();
-                    Log.d(LOG_TAG, "Queued root shell tap (" + x + "," + y + ")");
+                    Log.d(LOG_TAG, "Queued root shell command: " + command);
                 } catch (IOException exception) {
-                    Log.e(LOG_TAG, "Persistent root shell tap failed; resetting session", exception);
+                    Log.e(LOG_TAG, "Persistent root shell command failed; resetting session", exception);
                     closeRootShellLocked();
                 }
             }
-        }, "MATVT-RootShellTap");
-        shellTapThread.start();
+        }, threadName);
+        shellCommandThread.start();
     }
 
     private void ensureRootShellLocked() throws IOException {
