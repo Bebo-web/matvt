@@ -122,7 +122,7 @@ public class MouseEventService extends AccessibilityService {
         if (AccessibilityUtils.isAnotherServiceInstalled(this) &&
                 event.getKeyCode() == KeyEvent.KEYCODE_HOME) return true;
         if (AccessibilityUtils.isOverlayDisabled(this)) return false;
-        return mEngine.perform(event);
+        return mEngine != null && mEngine.perform(event);
     }
 
     @Override
@@ -144,6 +144,11 @@ public class MouseEventService extends AccessibilityService {
     }
 
     private void init() {
+        if (mEngine != null) {
+            Log.i(TAG_NAME, "Engine already initialized; skipping duplicate overlay/engine creation");
+            return;
+        }
+        try {
         OverlayView mOverlayView = new OverlayView(this);
         MouseCursorView mMouseCursorView = new MouseCursorView(this, appPreferences);
         AccessibilityServiceInfo asi = this.getServiceInfo();
@@ -168,6 +173,15 @@ public class MouseEventService extends AccessibilityService {
                 break;
         }
         mEngine.init(this);
+        } catch (RuntimeException exception) {
+            Log.e(TAG_NAME, "MATVT engine initialization failed; keeping accessibility service alive", exception);
+            if (mEngine != null) {
+                try { mEngine.destroy(); } catch (RuntimeException cleanupError) {
+                    Log.e(TAG_NAME, "Engine cleanup after initialization failure also failed", cleanupError);
+                }
+                mEngine = null;
+            }
+        }
     }
 
     public void updatePreferences() {
@@ -180,6 +194,24 @@ public class MouseEventService extends AccessibilityService {
     @Override
     public boolean onUnbind(Intent intent) {
         selfReference = null;
+        if (mEngine != null) {
+            try { mEngine.destroy(); } catch (RuntimeException exception) {
+                Log.e(TAG_NAME, "Engine cleanup during unbind failed", exception);
+            }
+            mEngine = null;
+        }
         return super.onUnbind(intent);
+    }
+
+    @Override
+    public void onDestroy() {
+        if (mEngine != null) {
+            try { mEngine.destroy(); } catch (RuntimeException exception) {
+                Log.e(TAG_NAME, "Engine cleanup during service destruction failed", exception);
+            }
+            mEngine = null;
+        }
+        selfReference = null;
+        super.onDestroy();
     }
 }
