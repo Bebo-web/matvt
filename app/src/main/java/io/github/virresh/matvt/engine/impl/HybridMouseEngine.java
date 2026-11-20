@@ -29,7 +29,7 @@ public class HybridMouseEngine extends BaseEngine {
         if (mService != null && scrollCodeMap.containsKey(ke.getKeyCode())) {
             isQueueEmpty = false;
 
-            PointF pointer = mPointerControl.getPointerLocation();
+            PointF pointer = mPointerControl.getPointerScreenLocation();
             int direction = scrollCodeMap.get(ke.getKeyCode());
             int momentum = momentumStack; // from BaseEngine
             final int DURATION = 300 - scrollSpeed * 10; // scrollSpeed from BaseEngine
@@ -38,7 +38,7 @@ public class HybridMouseEngine extends BaseEngine {
                     pointer.x + (momentum + 75) * PointerControl.dirX[direction],
                     pointer.y + (momentum + 75) * PointerControl.dirY[direction]);
 
-            shellSwipe((int) pointer.x, (int) pointer.y, (int) lineDirection.x, (int) lineDirection.y, DURATION);
+            dispatchRootShellSwipe(pointer, lineDirection, DURATION);
 
             swipeGestureCoolDown = new CountDownTimer(DURATION + 200, 100) {
                 @Override
