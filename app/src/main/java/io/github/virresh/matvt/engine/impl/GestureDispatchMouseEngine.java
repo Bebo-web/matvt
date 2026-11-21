@@ -49,29 +49,37 @@ public class GestureDispatchMouseEngine extends BaseEngine {
         float maxX = Math.max(1, metrics.widthPixels - 1);
         float maxY = Math.max(1, metrics.heightPixels - 1);
 
-        int distance = Math.max(120, Math.min(360, 220 + (scrollSpeed * 12)));
+        int requestedDistance = Math.max(120, Math.min(360, 220 + (scrollSpeed * 12)));
         float startX = Math.max(0, Math.min(maxX, pointer.x));
         float startY = Math.max(0, Math.min(maxY, pointer.y));
         float endX = startX;
         float endY = startY;
 
         switch (direction) {
-            case PointerControl.UP:
+            case PointerControl.UP: {
+                int distance = Math.max(1, Math.min(requestedDistance, (int) maxY - 1));
                 startY = Math.max(distance + 1, Math.min(maxY, startY));
                 endY = startY - distance;
                 break;
-            case PointerControl.DOWN:
+            }
+            case PointerControl.DOWN: {
+                int distance = Math.max(1, Math.min(requestedDistance, (int) maxY - 1));
                 startY = Math.min(maxY - distance, Math.max(0, startY));
                 endY = startY + distance;
                 break;
-            case PointerControl.LEFT:
+            }
+            case PointerControl.LEFT: {
+                int distance = Math.max(1, Math.min(requestedDistance, (int) maxX - 1));
                 startX = Math.max(distance + 1, Math.min(maxX, startX));
                 endX = startX - distance;
                 break;
-            case PointerControl.RIGHT:
+            }
+            case PointerControl.RIGHT: {
+                int distance = Math.max(1, Math.min(requestedDistance, (int) maxX - 1));
                 startX = Math.min(maxX - distance, Math.max(0, startX));
                 endX = startX + distance;
                 break;
+            }
             default:
                 return 0;
         }
