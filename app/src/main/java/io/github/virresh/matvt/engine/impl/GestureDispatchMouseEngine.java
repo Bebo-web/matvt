@@ -35,9 +35,53 @@ public class GestureDispatchMouseEngine extends BaseEngine {
 
     @Override
     protected int scroll(KeyEvent ke) {
+        if (mService == null || !scrollCodeMap.containsKey(ke.getKeyCode())) {
+            return 0;
+        }
+
+        // Use the root input channel for scrolling, just like the Shell engine.
+        // dispatchGesture can throw when a swipe endpoint crosses the display edge
+        // (for example, DPAD_DOWN near the top of the screen). A root input swipe
+        // produces a complete DOWN/MOVE/UP sequence and avoids that crash.
         int direction = scrollCodeMap.get(ke.getKeyCode());
         PointF pointer = mPointerControl.getPointerScreenLocation();
-        mService.dispatchGesture(createSwipe(pointer, direction, 150, scrollSpeed), gestureResultCallback, null);
+        android.util.DisplayMetrics metrics = mService.getResources().getDisplayMetrics();
+        float maxX = Math.max(1, metrics.widthPixels - 1);
+        float maxY = Math.max(1, metrics.heightPixels - 1);
+
+        int distance = Math.max(120, Math.min(360, 220 + (scrollSpeed * 12)));
+        float startX = Math.max(0, Math.min(maxX, pointer.x));
+        float startY = Math.max(0, Math.min(maxY, pointer.y));
+        float endX = startX;
+        float endY = startY;
+
+        switch (direction) {
+            case PointerControl.UP:
+                startY = Math.max(distance + 1, Math.min(maxY, startY));
+                endY = startY - distance;
+                break;
+            case PointerControl.DOWN:
+                startY = Math.min(maxY - distance, Math.max(0, startY));
+                endY = startY + distance;
+                break;
+            case PointerControl.LEFT:
+                startX = Math.max(distance + 1, Math.min(maxX, startX));
+                endX = startX - distance;
+                break;
+            case PointerControl.RIGHT:
+                startX = Math.min(maxX - distance, Math.max(0, startX));
+                endX = startX + distance;
+                break;
+            default:
+                return 0;
+        }
+
+        int duration = Math.max(80, Math.min(420, 360 - scrollSpeed * 35));
+        PointF start = new PointF(startX, startY);
+        PointF end = new PointF(endX, endY);
+        Log.i(LOG_TAG, "Root scroll swipe " + start.x + "," + start.y
+                + " -> " + end.x + "," + end.y + " duration=" + duration);
+        dispatchRootShellSwipe(start, end, duration);
         return 1;
     }
 
